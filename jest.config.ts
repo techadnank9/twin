@@ -15,6 +15,7 @@ const config: Config = {
       testEnvironment: 'jsdom',
       testMatch: ['**/__tests__/components/**/*.test.tsx'],
       transform: { '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }] },
+      setupFiles: ['<rootDir>/jest.setup.ts'],
       setupFilesAfterEnv: ['@testing-library/jest-dom'],
     },
   ],
