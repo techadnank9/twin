@@ -29,8 +29,10 @@ export default function SetupPage() {
   const [name, setName] = useState('')
   const [persona, setPersona] = useState('You are a helpful and friendly professional.')
   const [loading, setLoading] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [error, setError] = useState('')
   const mediaRef = useRef<MediaRecorder | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -160,6 +162,41 @@ export default function SetupPage() {
       setError(getErrorMessage(error))
     } finally {
       setVoicesLoading(false)
+    }
+  }
+
+  const previewVoice = async (voiceId: string) => {
+    if (previewing || !voiceId) return
+    // Stop any currently playing preview
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    setPreviewing(true)
+    try {
+      const res = await fetch('/api/voice/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceId }),
+      })
+      if (!res.ok) throw new Error('Preview failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        setPreviewing(false)
+      }
+      // Play only ~2 seconds then stop
+      setTimeout(() => {
+        audio.pause()
+        URL.revokeObjectURL(url)
+        setPreviewing(false)
+      }, 2000)
+      await audio.play()
+    } catch {
+      setPreviewing(false)
     }
   }
 
@@ -328,18 +365,29 @@ export default function SetupPage() {
                 {voicesLoading ? (
                   <p className="text-sm text-zinc-400">Loading voices…</p>
                 ) : voices.length > 0 ? (
-                  <select
-                    value={pickedVoiceId}
-                    onChange={(e) => setPickedVoiceId(e.target.value)}
-                    className="w-full rounded-lg bg-zinc-800 px-4 py-3 text-sm text-white outline-none"
-                  >
-                    <option value="">Select a voice</option>
-                    {voices.map((voice) => (
-                      <option key={voice.voice_id} value={voice.voice_id}>
-                        {voice.name} {voice.category ? `(${voice.category})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={pickedVoiceId}
+                      onChange={(e) => setPickedVoiceId(e.target.value)}
+                      className="flex-1 rounded-lg bg-zinc-800 px-4 py-3 text-sm text-white outline-none"
+                    >
+                      <option value="">Select a voice</option>
+                      {voices.map((voice) => (
+                        <option key={voice.voice_id} value={voice.voice_id}>
+                          {voice.name} {voice.category ? `(${voice.category})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => previewVoice(pickedVoiceId)}
+                      disabled={!pickedVoiceId || previewing}
+                      title="Preview voice"
+                      className="rounded-lg bg-zinc-800 px-3 py-3 text-white disabled:opacity-40 hover:bg-zinc-700 transition-colors"
+                    >
+                      {previewing ? '⏸' : '▶'}
+                    </button>
+                  </div>
                 ) : (
                   <p className="text-sm text-zinc-400">No ElevenLabs voices are available for this account yet.</p>
                 )}
