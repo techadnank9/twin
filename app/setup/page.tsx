@@ -83,20 +83,30 @@ export default function SetupPage() {
   const startRecording = async () => {
     setError('')
     chunksRef.current = []
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    const mr = new MediaRecorder(stream)
-    mr.ondataavailable = (e) => chunksRef.current.push(e.data)
-    mr.onstop = () => {
-      setAudioBlob(new Blob(chunksRef.current, { type: 'audio/webm' }))
-      stream.getTracks().forEach((t) => t.stop())
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      mr.ondataavailable = (e) => chunksRef.current.push(e.data)
+      mr.onstop = () => {
+        setAudioBlob(new Blob(chunksRef.current, { type: 'audio/webm' }))
+        stream.getTracks().forEach((t) => t.stop())
+      }
+      mediaRef.current = mr
+      mr.start()
+      setRecording(true)
+      setRecordingSeconds(0)
+      timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
+      // Auto-stop at 60s
+      setTimeout(() => stopRecording(), 60000)
+    } catch (e: any) {
+      if (e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError') {
+        setError('Microphone access denied — please allow microphone access in your browser and try again.')
+      } else if (e?.name === 'NotFoundError') {
+        setError('No microphone found — please connect a microphone and try again.')
+      } else {
+        setError(`Could not start recording: ${e?.message ?? e}`)
+      }
     }
-    mediaRef.current = mr
-    mr.start()
-    setRecording(true)
-    setRecordingSeconds(0)
-    timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
-    // Auto-stop at 60s
-    setTimeout(() => stopRecording(), 60000)
   }
 
   const stopRecording = () => {
