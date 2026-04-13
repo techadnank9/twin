@@ -1,6 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+let _client: Anthropic | null = null
+function getClient(): Anthropic {
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  return _client
+}
 
 export type Message = { role: 'user' | 'assistant'; content: string }
 
@@ -10,7 +14,7 @@ export function SYSTEM_PROMPT(persona: string): string {
 Respond conversationally and concisely — you are speaking aloud in a live video meeting. Keep responses under 3 sentences unless a longer answer is clearly required. Never mention that you are an AI unless directly asked.`
 }
 
-export function buildMessages(history: Message[]): Message[] {
+export function buildMessages(history: Message[], _persona?: string): Message[] {
   return history.slice(-20)
 }
 
@@ -22,7 +26,7 @@ export async function streamChat(
 ): Promise<string> {
   const messages = buildMessages([...history, { role: 'user', content: userMessage }])
   let full = ''
-  const stream = anthropic.messages.stream({
+  const stream = getClient().messages.stream({
     model: 'claude-sonnet-4-6',
     max_tokens: 300,
     system: SYSTEM_PROMPT(persona),

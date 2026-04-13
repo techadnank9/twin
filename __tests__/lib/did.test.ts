@@ -35,3 +35,25 @@ describe('sendTalk', () => {
     expect(body.script.provider.voice_id).toBe('voice_abc')
   })
 })
+
+describe('sendSdpAnswer', () => {
+  it('posts SDP answer to the sdp endpoint', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({}))
+    await sendSdpAnswer('str_123', 'ses_456', { type: 'answer', sdp: 'v=0...' })
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.d-id.com/talks/streams/str_123/sdp')
+    expect(opts!.method).toBe('POST')
+  })
+})
+
+describe('closeStream', () => {
+  it('sends DELETE with session_id', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({}))
+    await closeStream('str_123', 'ses_456')
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.d-id.com/talks/streams/str_123')
+    expect(opts!.method).toBe('DELETE')
+    const body = JSON.parse(opts!.body as string)
+    expect(body.session_id).toBe('ses_456')
+  })
+})

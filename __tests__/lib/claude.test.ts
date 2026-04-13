@@ -1,10 +1,9 @@
 import { buildMessages, SYSTEM_PROMPT } from '@/lib/claude'
 
 describe('buildMessages', () => {
-  it('returns messages as-is when under 20', () => {
+  it('returns messages unchanged when under 20', () => {
     const history = [{ role: 'user' as const, content: 'Hi' }]
-    const msgs = buildMessages(history)
-    expect(msgs).toHaveLength(1)
+    expect(buildMessages(history, 'my persona')).toHaveLength(1)
   })
 
   it('trims history to last 20 messages', () => {
@@ -12,7 +11,7 @@ describe('buildMessages', () => {
       role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
       content: `msg ${i}`,
     }))
-    const msgs = buildMessages(history)
+    const msgs = buildMessages(history, 'my persona')
     expect(msgs).toHaveLength(20)
     expect(msgs[0].content).toBe('msg 5')
   })

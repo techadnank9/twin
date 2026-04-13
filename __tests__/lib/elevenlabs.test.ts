@@ -17,10 +17,16 @@ describe('cloneVoice', () => {
 })
 
 describe('textToSpeech', () => {
-  it('returns audio buffer for given text and voice', async () => {
-    const fakeAudio = new Uint8Array([1, 2, 3]).buffer
-    fetchMock.mockResponseOnce(Buffer.from(new Uint8Array([1,2,3])), { headers: { 'content-type': 'audio/mpeg' } })
+  it('returns ArrayBuffer for given text and voice', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify('audio'),
+      { headers: { 'content-type': 'audio/mpeg' } }
+    )
     const result = await textToSpeech('Hello', 'voice_abc123')
     expect(result).toBeInstanceOf(ArrayBuffer)
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.elevenlabs.io/v1/text-to-speech/voice_abc123')
+    const body = JSON.parse(opts!.body as string)
+    expect(body.text).toBe('Hello')
   })
 })

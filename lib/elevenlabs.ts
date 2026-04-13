@@ -1,6 +1,6 @@
 const BASE = 'https://api.elevenlabs.io/v1'
 
-function headers(json = false) {
+function authHeaders(json = false) {
   const h: Record<string, string> = { 'xi-api-key': process.env.ELEVENLABS_API_KEY! }
   if (json) h['Content-Type'] = 'application/json'
   return h
@@ -13,7 +13,7 @@ export async function cloneVoice(audioBlob: Blob, name: string): Promise<string>
   form.append('description', 'Twin voice clone')
   const res = await fetch(`${BASE}/voices/add`, {
     method: 'POST',
-    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY! },
+    headers: authHeaders(),
     body: form,
   })
   if (!res.ok) throw new Error(`ElevenLabs cloneVoice failed: ${res.status}`)
@@ -24,7 +24,7 @@ export async function cloneVoice(audioBlob: Blob, name: string): Promise<string>
 export async function textToSpeech(text: string, voiceId: string): Promise<ArrayBuffer> {
   const res = await fetch(`${BASE}/text-to-speech/${voiceId}`, {
     method: 'POST',
-    headers: headers(true),
+    headers: authHeaders(true),
     body: JSON.stringify({
       text,
       model_id: 'eleven_turbo_v2',
