@@ -137,25 +137,39 @@ export function useStream(sourceUrl: string, voiceId: string) {
     }
   }, [playRemoteMedia, sourceUrl])
 
-  const speak = useCallback(async (text: string) => {
-    if (!stateRef.current) return
-    const { streamId, sessionId } = stateRef.current
-    const response = await fetch('/api/stream/talk', {
+  const playTTS = useCallback(async (text: string): Promise<void> => {
+    const res = await fetch('/api/voice/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ streamId, sessionId, text, voiceId }),
+      body: JSON.stringify({ voiceId, text }),
     })
-    const body = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      const msg = body?.error ?? 'Talk failed'
-      // Session expired — surface a clear message so user knows to refresh
-      if (msg.includes('session_id') || msg.includes('SessionError')) {
-        throw new Error('Session expired — please refresh the page to start a new session')
-      }
-      throw new Error(msg)
-    }
+    if (!res.ok) return
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    return new Promise((resolve) => {
+      const audio = new Audio(url)
+      audio.onended = () => { URL.revokeObjectURL(url); resolve() }
+      audio.onerror = () => { URL.revokeObjectURL(url); resolve() }
+      audio.play().catch(() => resolve())
+    })
   }, [voiceId])
+
+  const speak = useCallback(async (text: string) => {
+    // Always play ElevenLabs TTS directly — reliable audio regardless of WebRTC
+    const ttsPromise = playTTS(text)
+
+    // Also fire D-ID stream/talk for lip-sync animation (best-effort, don't throw)
+    if (stateRef.current) {
+      const { streamId, sessionId } = stateRef.current
+      fetch('/api/stream/talk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId, sessionId, text, voiceId }),
+      }).catch(() => {/* animation failed, audio still plays */})
+    }
+
+    await ttsPromise
+  }, [voiceId, playTTS])
 
   const disconnect = useCallback(async () => {
     if (!stateRef.current) return

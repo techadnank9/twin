@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   try {
-    const { voiceId } = await req.json()
+    const { voiceId, text } = await req.json()
     if (!voiceId) return NextResponse.json({ error: 'voiceId required' }, { status: 400 })
 
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: "Hi, I'm your AI twin. How can I help you today?",
+        text: text || "Hi, I'm your AI twin. How can I help you today?",
         model_id: 'eleven_turbo_v2',
         voice_settings: { stability: 0.5, similarity_boost: 0.75 },
       }),
