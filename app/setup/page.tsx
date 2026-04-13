@@ -249,9 +249,29 @@ export default function SetupPage() {
 
   const stepIndex = STEPS.indexOf(step)
 
+  const isConfigured = !!(config.sourceUrl && config.voiceId)
+
   return (
     <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+        {/* Resume banner */}
+        {isConfigured && (
+          <div className="mb-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-white text-sm font-medium">
+                {config.name || 'Your twin'} is already set up
+              </p>
+              <p className="text-zinc-400 text-xs mt-0.5">Skip setup and go straight to your session</p>
+            </div>
+            <button
+              onClick={() => router.push('/session')}
+              className="shrink-0 bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-zinc-200 transition-colors"
+            >
+              Resume →
+            </button>
+          </div>
+        )}
+
         {/* Progress bar */}
         <div className="flex gap-2 mb-10">
           {STEPS.map((s, i) => (
