@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Twin — AI Digital Twin for Live Meetings
 
-## Getting Started
+Show up to every meeting with your AI twin. Upload your photo, clone your voice, and let Claude respond as you — avatar powered by D-ID, voice by ElevenLabs.
 
-First, run the development server:
+## Quick Start
 
+**1. Clone and install**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/techadnakh9/twin.git
+cd twin
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**2. Add your API keys**
+```bash
+cp .env.example .env.local
+```
+Edit `.env.local`:
+```
+ANTHROPIC_API_KEY=sk-ant-...
+DID_API_KEY=...
+ELEVENLABS_API_KEY=sk_...
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**3. Run**
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## How It Works
 
-To learn more about Next.js, take a look at the following resources:
+1. **`/setup`** — Upload your portrait photo, record your voice (30–60s), write your persona prompt
+2. **`/session`** — Your AI twin appears. Speak into your mic → Claude responds → avatar speaks in your cloned voice
+3. **Screen-share** the `/session` window in Zoom, Google Meet, or Teams
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Get Your API Keys
 
-## Deploy on Vercel
+| Service | Where to get it |
+|---|---|
+| Anthropic (Claude) | [console.anthropic.com](https://console.anthropic.com) |
+| D-ID | [studio.d-id.com](https://studio.d-id.com) → API keys |
+| ElevenLabs | [elevenlabs.io](https://elevenlabs.io) → Profile → API key |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> **Note:** ElevenLabs voice cloning requires a paid plan (Starter+). D-ID also requires credits for avatar creation.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Tech Stack
+
+- **Next.js 16** (App Router) + TypeScript + Tailwind CSS
+- **D-ID Streams API** — real-time WebRTC avatar
+- **ElevenLabs** — instant voice cloning + TTS
+- **Claude Sonnet 4.6** — AI responses
+- **Web Speech API** — browser-native speech recognition (Chrome/Edge only)
+
+Full details in [`docs/TECH_STACK.md`](docs/TECH_STACK.md) · Product spec in [`docs/PRD.md`](docs/PRD.md)
