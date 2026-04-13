@@ -24,6 +24,7 @@ export function ConversationEngine({ speak, onTranscript }: Props) {
 
   const handleFinal = useCallback(async (text: string) => {
     if (isSpeakingRef.current || !text.trim() || !speak) return
+    // speak is always ready (no WebRTC needed)
     isSpeakingRef.current = true
 
     addMessage({ role: 'user', content: text })

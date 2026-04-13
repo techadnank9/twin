@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
-import { useStream } from '@/hooks/useStream'
+import { useEffect } from 'react'
+import { useTalks } from '@/hooks/useTalks'
 
 interface Props {
   sourceUrl: string
@@ -11,71 +11,39 @@ interface Props {
   onDisconnect?: () => void
 }
 
-export function AvatarStream({ sourceUrl, previewUrl, voiceId, name, onReady, onDisconnect }: Props) {
-  const { videoRef, connected, error, playbackBlocked, connect, speak, disconnect, resumePlayback } = useStream(sourceUrl, voiceId)
-  const [videoReady, setVideoReady] = useState(false)
-  const hasStartedRef = useRef(false)
+export function AvatarStream({ sourceUrl, previewUrl, voiceId, name, onReady }: Props) {
+  const { videoRef, playing, error, speak } = useTalks(sourceUrl, voiceId)
 
+  // Ready immediately — no WebRTC handshake needed
   useEffect(() => {
-    if (hasStartedRef.current) return
-    hasStartedRef.current = true
-    connect()
-    return () => {
-      disconnect()
-      onDisconnect?.()
-    }
-  }, [connect, disconnect, onDisconnect])
-
-  useEffect(() => {
-    if (connected) onReady(speak)
-  }, [connected, onReady, speak])
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full text-red-400 text-sm">
-        Connection error: {error}
-      </div>
-    )
-  }
+    onReady(speak)
+  }, [onReady, speak])
 
   return (
     <div className="relative flex items-center justify-center h-full">
-      {!videoReady && (
-        <img
-          src={previewUrl}
-          alt={`${name} avatar preview`}
-          className="rounded-xl max-h-[60vh] aspect-[3/4] object-cover"
-        />
-      )}
-      {!connected && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white text-sm rounded-xl z-10 gap-2">
-          <div className="animate-pulse">Connecting avatar…</div>
-          <div className="text-zinc-400 text-xs">This may take up to 10 seconds</div>
-        </div>
-      )}
+      {/* Static photo — shown when video isn't playing */}
+      <img
+        src={previewUrl || sourceUrl}
+        alt={`${name} avatar`}
+        className={`rounded-xl max-h-[60vh] aspect-[3/4] object-cover transition-opacity duration-300 ${playing ? 'opacity-0 absolute' : 'opacity-100'}`}
+      />
+
+      {/* D-ID generated video — plays when ready */}
       <video
         ref={videoRef}
-        autoPlay
         playsInline
         muted
-        onLoadedData={() => setVideoReady(true)}
-        onPlaying={() => setVideoReady(true)}
-        className={`rounded-xl max-h-[60vh] aspect-[3/4] object-cover ${videoReady ? 'opacity-100' : 'opacity-0'} transition-opacity`}
+        className={`rounded-xl max-h-[60vh] aspect-[3/4] object-cover transition-opacity duration-300 ${playing ? 'opacity-100' : 'opacity-0 absolute'}`}
       />
-      {playbackBlocked && (
-        <button
-          type="button"
-          onClick={() => void resumePlayback()}
-          className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-xl z-20 gap-3 cursor-pointer"
-        >
-          <span className="text-5xl">🔊</span>
-          <span className="bg-white text-black px-6 py-2 rounded-full font-medium text-sm">
-            Tap to enable audio
-          </span>
-        </button>
+
+      {error && (
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-red-900/80 text-red-300 text-xs px-3 py-1 rounded-full">
+          {error}
+        </div>
       )}
+
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white text-sm px-4 py-1 rounded-full whitespace-nowrap">
-        {name} • AI Twin
+        {name} • AI Twin {playing ? '🎬' : ''}
       </div>
     </div>
   )
