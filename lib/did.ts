@@ -10,13 +10,28 @@ function headers() {
   }
 }
 
-export async function uploadImage(imageUrl: string): Promise<string> {
+export async function uploadImageUrl(imageUrl: string): Promise<string> {
   const res = await fetch(`${BASE}/images`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ url: imageUrl, name: 'twin-avatar' }),
   })
-  if (!res.ok) throw new Error(`D-ID uploadImage failed: ${res.status}`)
+  if (!res.ok) throw new Error(`D-ID uploadImage failed: ${res.status} ${await res.text()}`)
+  const data = await res.json()
+  return data.url
+}
+
+export async function uploadImageFile(imageBlob: Blob): Promise<string> {
+  const form = new FormData()
+  form.append('image', imageBlob, 'avatar.jpg')
+  const res = await fetch(`${BASE}/images`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(process.env.DID_API_KEY! + ':').toString('base64')}`,
+    },
+    body: form,
+  })
+  if (!res.ok) throw new Error(`D-ID uploadImage failed: ${res.status} ${await res.text()}`)
   const data = await res.json()
   return data.url
 }

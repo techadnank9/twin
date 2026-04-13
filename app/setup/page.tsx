@@ -12,6 +12,7 @@ export default function SetupPage() {
   const [step, setStep] = useState<Step>('photo')
   const [photoPreview, setPhotoPreview] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoUrl, setPhotoUrl] = useState('')
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
@@ -32,24 +33,22 @@ export default function SetupPage() {
   }
 
   const handlePhotoNext = async () => {
-    if (!photoFile) return
+    if (!photoFile && !photoUrl) return
     setError('')
     setLoading(true)
     try {
-      // Upload to a temp public URL via base64 data URL
-      // NOTE: D-ID requires a publicly accessible URL.
-      // For local dev, host photo publicly (e.g. imgbb) and paste URL directly.
-      // For now we read it as a data URL as a best-effort approach.
-      const reader = new FileReader()
-      const dataUrl: string = await new Promise((res) => {
-        reader.onload = (e) => res(e.target?.result as string)
-        reader.readAsDataURL(photoFile)
-      })
-      const response = await fetch('/api/avatar/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: dataUrl }),
-      })
+      let response: Response
+      if (photoUrl) {
+        response = await fetch('/api/avatar/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: photoUrl }),
+        })
+      } else {
+        const form = new FormData()
+        form.append('image', photoFile!)
+        response = await fetch('/api/avatar/create', { method: 'POST', body: form })
+      }
       if (!response.ok) throw new Error('Avatar creation failed — check DID_API_KEY')
       const { source_url } = await response.json()
       setConfig({ sourceUrl: source_url })
@@ -152,9 +151,19 @@ export default function SetupPage() {
             {photoPreview && (
               <img src={photoPreview} alt="Preview" className="w-32 h-32 object-cover rounded-xl border border-zinc-700" />
             )}
+            <div className="flex items-center gap-3 text-zinc-500 text-sm">
+              <div className="flex-1 h-px bg-zinc-700" /> or paste a public URL <div className="flex-1 h-px bg-zinc-700" />
+            </div>
+            <input
+              type="url"
+              value={photoUrl}
+              onChange={(e) => { setPhotoUrl(e.target.value); setPhotoFile(null); setPhotoPreview('') }}
+              placeholder="https://example.com/your-photo.jpg"
+              className="w-full bg-zinc-800 text-white px-4 py-2 rounded-lg outline-none placeholder:text-zinc-500 text-sm"
+            />
             <button
               onClick={handlePhotoNext}
-              disabled={!photoFile || loading}
+              disabled={(!photoFile && !photoUrl) || loading}
               className="w-full bg-white text-black py-3 rounded-xl font-medium disabled:opacity-40 transition-opacity"
             >
               {loading ? 'Creating avatar…' : 'Next →'}

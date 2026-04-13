@@ -9,6 +9,7 @@ const config: Config = {
       testMatch: ['**/__tests__/lib/**/*.test.ts', '**/__tests__/api/**/*.test.ts'],
       transform: { '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }] },
       setupFiles: ['<rootDir>/jest.setup.ts'],
+      moduleNameMapper: { '^@/(.*)$': '<rootDir>/$1' },
     },
     {
       displayName: 'dom',
@@ -17,6 +18,7 @@ const config: Config = {
       transform: { '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }] },
       setupFiles: ['<rootDir>/jest.setup.ts'],
       setupFilesAfterEnv: ['@testing-library/jest-dom'],
+      moduleNameMapper: { '^@/(.*)$': '<rootDir>/$1' },
     },
   ],
 }
