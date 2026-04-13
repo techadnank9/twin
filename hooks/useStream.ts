@@ -17,14 +17,15 @@ export function useStream(sourceUrl: string, voiceId: string) {
 
   const playRemoteMedia = useCallback(async () => {
     if (!videoRef.current) return
-
     videoRef.current.autoplay = true
     videoRef.current.playsInline = true
-    videoRef.current.muted = false
+    // Start muted so browser allows autoplay, then unmute
+    videoRef.current.muted = true
     videoRef.current.volume = 1
-
     try {
       await videoRef.current.play()
+      // Unmute after play() succeeds
+      videoRef.current.muted = false
       setPlaybackBlocked(false)
     } catch (error) {
       console.warn('Remote media playback was blocked', error)
@@ -97,6 +98,12 @@ export function useStream(sourceUrl: string, voiceId: string) {
 
       pc.onconnectionstatechange = () => {
         console.info('Peer connection state changed', pc.connectionState)
+        if (pc.connectionState === 'connected') {
+          setConnected(true)
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          setError('Avatar connection lost — please refresh the page')
+          setConnected(false)
+        }
       }
 
       // 3. Set remote description (D-ID's SDP offer)
@@ -112,7 +119,14 @@ export function useStream(sourceUrl: string, voiceId: string) {
       })
 
       stateRef.current = { streamId, sessionId, pc }
-      setConnected(true)
+      // connected is set via onconnectionstatechange, with a 15s fallback
+      setTimeout(() => {
+        if (!stateRef.current) return
+        setConnected((prev) => {
+          if (!prev) console.warn('WebRTC did not reach connected state — forcing ready')
+          return true
+        })
+      }, 15000)
     } catch (err) {
       console.warn('Avatar connection warning', err)
       setError(err instanceof Error ? err.message : 'Connection failed')
@@ -129,13 +143,13 @@ export function useStream(sourceUrl: string, voiceId: string) {
     })
     const body = await response.json().catch(() => null)
 
-    console.info('Talk response', {
-      status: response.status,
-      body,
-    })
-
     if (!response.ok) {
-      throw new Error(body?.error ?? 'Talk failed')
+      const msg = body?.error ?? 'Talk failed'
+      // Session expired — surface a clear message so user knows to refresh
+      if (msg.includes('session_id') || msg.includes('SessionError')) {
+        throw new Error('Session expired — please refresh the page to start a new session')
+      }
+      throw new Error(msg)
     }
   }, [voiceId])
 
@@ -157,5 +171,16 @@ export function useStream(sourceUrl: string, voiceId: string) {
     setPlaybackBlocked(false)
   }, [])
 
-  return { videoRef, connected, error, playbackBlocked, connect, speak, disconnect, resumePlayback: playRemoteMedia }
+  const resumePlayback = useCallback(async () => {
+    if (!videoRef.current) return
+    videoRef.current.muted = false
+    try {
+      await videoRef.current.play()
+      setPlaybackBlocked(false)
+    } catch {
+      // Still blocked — video will play muted
+    }
+  }, [])
+
+  return { videoRef, connected, error, playbackBlocked, connect, speak, disconnect, resumePlayback }
 }
