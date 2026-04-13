@@ -53,20 +53,22 @@ export default function SetupPage() {
     setError('')
     setLoading(true)
     try {
-      let response: Response
+      // For a public URL: skip D-ID /images upload, store directly.
+      // D-ID streams API accepts any public HTTPS image URL.
       if (photoUrl) {
-        response = await fetch('/api/avatar/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: photoUrl }),
-        })
-      } else {
-        const jpeg = await toJpegBlob(photoFile!)
-        const form = new FormData()
-        form.append('image', jpeg, 'avatar.jpg')
-        response = await fetch('/api/avatar/create', { method: 'POST', body: form })
+        setConfig({ sourceUrl: photoUrl })
+        setStep('voice')
+        return
       }
-      if (!response.ok) throw new Error('Avatar creation failed — check DID_API_KEY')
+      // For file upload: send to D-ID /images to get a hosted URL
+      const jpeg = await toJpegBlob(photoFile!)
+      const form = new FormData()
+      form.append('image', jpeg, 'avatar.jpg')
+      const response = await fetch('/api/avatar/create', { method: 'POST', body: form })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Avatar creation failed — check DID_API_KEY')
+      }
       const { source_url } = await response.json()
       setConfig({ sourceUrl: source_url })
       setStep('voice')
