@@ -32,6 +32,22 @@ export default function SetupPage() {
     setPhotoPreview(URL.createObjectURL(file))
   }
 
+  const toJpegBlob = (file: File): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        canvas.getContext('2d')!.drawImage(img, 0, 0)
+        URL.revokeObjectURL(url)
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Canvas conversion failed'))), 'image/jpeg', 0.92)
+      }
+      img.onerror = reject
+      img.src = url
+    })
+
   const handlePhotoNext = async () => {
     if (!photoFile && !photoUrl) return
     setError('')
@@ -45,8 +61,9 @@ export default function SetupPage() {
           body: JSON.stringify({ imageUrl: photoUrl }),
         })
       } else {
+        const jpeg = await toJpegBlob(photoFile!)
         const form = new FormData()
-        form.append('image', photoFile!)
+        form.append('image', jpeg, 'avatar.jpg')
         response = await fetch('/api/avatar/create', { method: 'POST', body: form })
       }
       if (!response.ok) throw new Error('Avatar creation failed — check DID_API_KEY')

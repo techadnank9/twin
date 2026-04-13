@@ -14,7 +14,7 @@ export async function uploadImageUrl(imageUrl: string): Promise<string> {
   const res = await fetch(`${BASE}/images`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ url: imageUrl, name: 'twin-avatar' }),
+    body: JSON.stringify({ source_url: imageUrl }),
   })
   if (!res.ok) throw new Error(`D-ID uploadImage failed: ${res.status} ${await res.text()}`)
   const data = await res.json()
