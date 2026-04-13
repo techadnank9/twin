@@ -9,6 +9,7 @@ export async function POST(req: Request) {
     return NextResponse.json(data)
   } catch (err) {
     console.error('stream/create error:', err)
-    return NextResponse.json({ error: 'Stream create failed' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Stream create failed'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

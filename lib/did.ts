@@ -4,8 +4,7 @@ const BASE = 'https://api.d-id.com'
 
 function headers() {
   return {
-    // D-ID uses Basic auth: base64(api_key + ':')
-    Authorization: `Basic ${Buffer.from(process.env.DID_API_KEY! + ':').toString('base64')}`,
+    Authorization: `Basic ${process.env.DID_API_KEY!}`,
     'Content-Type': 'application/json',
   }
 }
@@ -27,7 +26,7 @@ export async function uploadImageFile(imageBlob: Blob): Promise<string> {
   const res = await fetch(`${BASE}/images`, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${Buffer.from(process.env.DID_API_KEY! + ':').toString('base64')}`,
+      Authorization: `Basic ${process.env.DID_API_KEY!}`,
     },
     body: form,
   })
@@ -42,7 +41,10 @@ export async function createStream(sourceUrl: string) {
     headers: headers(),
     body: JSON.stringify({ source_url: sourceUrl }),
   })
-  if (!res.ok) throw new Error(`D-ID createStream failed: ${res.status}`)
+  if (!res.ok) {
+    const details = await res.text()
+    throw new Error(`D-ID createStream failed: ${res.status} ${details}`)
+  }
   return res.json() as Promise<{ id: string; session_id: string; offer: RTCSessionDescriptionInit; ice_servers: RTCIceServer[] }>
 }
 
@@ -65,9 +67,17 @@ export async function sendIce(streamId: string, sessionId: string, candidate: RT
 }
 
 export async function sendTalk(streamId: string, sessionId: string, text: string, voiceId: string) {
+  const requestHeaders: Record<string, string> = headers()
+
+  if (process.env.ELEVENLABS_API_KEY) {
+    requestHeaders['x-api-key-external'] = JSON.stringify({
+      elevenlabs: process.env.ELEVENLABS_API_KEY,
+    })
+  }
+
   const res = await fetch(`${BASE}/talks/streams/${streamId}`, {
     method: 'POST',
-    headers: headers(),
+    headers: requestHeaders,
     body: JSON.stringify({
       script: {
         type: 'text',
@@ -78,7 +88,7 @@ export async function sendTalk(streamId: string, sessionId: string, text: string
       config: { stitch: true },
     }),
   })
-  if (!res.ok) throw new Error(`D-ID sendTalk failed: ${res.status}`)
+  if (!res.ok) throw new Error(`D-ID sendTalk failed: ${res.status} ${await res.text()}`)
   return res.json()
 }
 

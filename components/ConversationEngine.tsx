@@ -3,6 +3,11 @@ import { useState, useCallback, useRef } from 'react'
 import { useMic } from '@/hooks/useMic'
 import { useStore } from '@/lib/store'
 
+type SpeechWindow = Window & {
+  SpeechRecognition?: unknown
+  webkitSpeechRecognition?: unknown
+}
+
 interface Props {
   speak: ((text: string) => Promise<void>) | null
   onTranscript: (text: string, role: 'user' | 'assistant') => void
@@ -14,7 +19,7 @@ export function ConversationEngine({ speak, onTranscript }: Props) {
   const [fallbackText, setFallbackText] = useState('')
   const [speechSupported] = useState(() =>
     typeof window !== 'undefined' &&
-    !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    !!((window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition)
   )
 
   const handleFinal = useCallback(async (text: string) => {
@@ -28,8 +33,18 @@ export function ConversationEngine({ speak, onTranscript }: Props) {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, persona: config.personaPrompt }),
+        body: JSON.stringify({
+          message: text,
+          history,
+          persona: config.personaPrompt,
+          apiKey: config.anthropicApiKey,
+        }),
       })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Chat failed')
+      }
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
@@ -40,13 +55,21 @@ export function ConversationEngine({ speak, onTranscript }: Props) {
         full += decoder.decode(value, { stream: true })
       }
 
+      if (!full.trim()) {
+        throw new Error('Assistant returned an empty response')
+      }
+
       addMessage({ role: 'assistant', content: full })
       onTranscript(full, 'assistant')
       await speak(full)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Conversation failed'
+      console.warn('Conversation error', message)
+      onTranscript(message, 'assistant')
     } finally {
       isSpeakingRef.current = false
     }
-  }, [speak, history, config.personaPrompt, addMessage, onTranscript])
+  }, [speak, history, config.anthropicApiKey, config.personaPrompt, addMessage, onTranscript])
 
   const { listening, interim, start, stop } = useMic(handleFinal)
 

@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server'
 import { sendTalk } from '@/lib/did'
 
+export function getMissingTalkFields(payload: {
+  streamId?: string
+  sessionId?: string
+  text?: string
+  voiceId?: string
+}) {
+  return (['streamId', 'sessionId', 'text', 'voiceId'] as const).filter((field) => !payload[field])
+}
+
 export async function POST(req: Request) {
   try {
     const { streamId, sessionId, text, voiceId } = await req.json()
-    if (!streamId || !sessionId || !text || !voiceId) {
+    const missingFields = getMissingTalkFields({ streamId, sessionId, text, voiceId })
+    if (missingFields.length > 0) {
       return NextResponse.json(
-        { error: 'streamId, sessionId, text, voiceId required' },
+        { error: `Missing required fields: ${missingFields.join(', ')}` },
         { status: 400 }
       )
     }

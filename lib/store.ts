@@ -6,6 +6,7 @@ import type { Message } from '@/lib/claude'
 interface Config {
   voiceId: string
   sourceUrl: string
+  previewUrl: string
   personaPrompt: string
   name: string
   didApiKey: string
@@ -27,6 +28,7 @@ export const useStore = create<Store>()(
       config: {
         voiceId: '',
         sourceUrl: '',
+        previewUrl: '',
         personaPrompt: '',
         name: 'My Twin',
         didApiKey: '',

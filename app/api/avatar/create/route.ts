@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { uploadImageFile, uploadImageUrl } from '@/lib/did'
+import { uploadImageFile } from '@/lib/did'
 
 export async function POST(req: Request) {
   try {
@@ -8,7 +8,25 @@ export async function POST(req: Request) {
     if (contentType.includes('application/json')) {
       const { imageUrl } = await req.json()
       if (!imageUrl) return NextResponse.json({ error: 'imageUrl is required' }, { status: 400 })
-      const source_url = await uploadImageUrl(imageUrl)
+
+      const imageResponse = await fetch(imageUrl)
+      if (!imageResponse.ok) {
+        return NextResponse.json(
+          { error: `Could not download image from URL: ${imageResponse.status}` },
+          { status: 400 }
+        )
+      }
+
+      const responseType = imageResponse.headers.get('content-type') ?? ''
+      if (!responseType.startsWith('image/')) {
+        return NextResponse.json(
+          { error: 'The pasted URL does not point to a direct image file. Try a URL ending in .jpg, .png, or .webp.' },
+          { status: 400 }
+        )
+      }
+
+      const imageBlob = await imageResponse.blob()
+      const source_url = await uploadImageFile(imageBlob)
       return NextResponse.json({ source_url })
     }
 

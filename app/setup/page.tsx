@@ -1,18 +1,28 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useStore } from '@/lib/store'
 import { useRouter } from 'next/navigation'
 
 type Step = 'photo' | 'voice' | 'persona'
 const STEPS: Step[] = ['photo', 'voice', 'persona']
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
 export default function SetupPage() {
   const router = useRouter()
-  const { setConfig } = useStore()
+  const { config, setConfig } = useStore()
   const [step, setStep] = useState<Step>('photo')
   const [photoPreview, setPhotoPreview] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
+  const [voices, setVoices] = useState<{ voice_id: string; name: string; category: string }[]>([])
+  const [showVoicePicker, setShowVoicePicker] = useState(false)
+  const [pickedVoiceId, setPickedVoiceId] = useState('')
+  const [voicesLoading, setVoicesLoading] = useState(false)
+  const [voicesLoaded, setVoicesLoaded] = useState(false)
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
@@ -23,6 +33,17 @@ export default function SetupPage() {
   const mediaRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (config.previewUrl && !photoFile) {
+      setPhotoPreview(config.previewUrl)
+      setPhotoUrl(config.previewUrl.startsWith('blob:') ? '' : config.previewUrl)
+    }
+    if (config.name && !name) setName(config.name)
+    if (config.personaPrompt && persona === 'You are a helpful and friendly professional.') {
+      setPersona(config.personaPrompt)
+    }
+  }, [config.name, config.personaPrompt, config.previewUrl, name, persona, photoFile])
 
   // ── Step 1: Photo ──────────────────────────────────────────────
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,10 +74,18 @@ export default function SetupPage() {
     setError('')
     setLoading(true)
     try {
-      // For a public URL: skip D-ID /images upload, store directly.
-      // D-ID streams API accepts any public HTTPS image URL.
       if (photoUrl) {
-        setConfig({ sourceUrl: photoUrl })
+        const response = await fetch('/api/avatar/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: photoUrl }),
+        })
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}))
+          throw new Error(err.error ?? 'Avatar creation failed — make sure the photo URL points directly to an image')
+        }
+        const { source_url } = await response.json()
+        setConfig({ sourceUrl: source_url, previewUrl: photoUrl })
         setStep('voice')
         return
       }
@@ -70,10 +99,10 @@ export default function SetupPage() {
         throw new Error(err.error ?? 'Avatar creation failed — check DID_API_KEY')
       }
       const { source_url } = await response.json()
-      setConfig({ sourceUrl: source_url })
+      setConfig({ sourceUrl: source_url, previewUrl: photoPreview })
       setStep('voice')
-    } catch (e: any) {
-      setError(e.message)
+    } catch (error: unknown) {
+      setError(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -98,13 +127,13 @@ export default function SetupPage() {
       timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
       // Auto-stop at 60s
       setTimeout(() => stopRecording(), 60000)
-    } catch (e: any) {
-      if (e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError') {
+    } catch (error: unknown) {
+      if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')) {
         setError('Microphone access denied — please allow microphone access in your browser and try again.')
-      } else if (e?.name === 'NotFoundError') {
+      } else if (error instanceof DOMException && error.name === 'NotFoundError') {
         setError('No microphone found — please connect a microphone and try again.')
       } else {
-        setError(`Could not start recording: ${e?.message ?? e}`)
+        setError(`Could not start recording: ${getErrorMessage(error)}`)
       }
     }
   }
@@ -115,7 +144,44 @@ export default function SetupPage() {
     setRecording(false)
   }
 
+  const loadVoices = async () => {
+    if (voicesLoading || voicesLoaded) return
+    setError('')
+    setVoicesLoading(true)
+    try {
+      const response = await fetch('/api/voice/list')
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(body.error ?? 'Could not load ElevenLabs voices')
+      }
+      setVoices(Array.isArray(body.voices) ? body.voices : [])
+      setVoicesLoaded(true)
+    } catch (error: unknown) {
+      setError(getErrorMessage(error))
+    } finally {
+      setVoicesLoading(false)
+    }
+  }
+
+  const handleSkipToVoicePicker = async () => {
+    setShowVoicePicker(true)
+    setAudioBlob(null)
+    stopRecording()
+    await loadVoices()
+  }
+
   const handleVoiceNext = async () => {
+    if (showVoicePicker) {
+      if (!pickedVoiceId) return
+      setError('')
+      const selectedVoice = voices.find((voice) => voice.voice_id === pickedVoiceId)
+      setConfig({
+        voiceId: pickedVoiceId,
+        name: name || selectedVoice?.name || 'My Twin',
+      })
+      setStep('persona')
+      return
+    }
     if (!audioBlob) return
     setError('')
     setLoading(true)
@@ -124,12 +190,15 @@ export default function SetupPage() {
       form.append('audio', audioBlob, 'recording.webm')
       form.append('name', name || 'My Twin')
       const response = await fetch('/api/voice/clone', { method: 'POST', body: form })
-      if (!response.ok) throw new Error('Voice clone failed — check ELEVENLABS_API_KEY')
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Voice clone failed — check ELEVENLABS_API_KEY')
+      }
       const { voice_id } = await response.json()
       setConfig({ voiceId: voice_id, name: name || 'My Twin' })
       setStep('persona')
-    } catch (e: any) {
-      setError(e.message)
+    } catch (error: unknown) {
+      setError(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -186,7 +255,7 @@ export default function SetupPage() {
             <input
               type="url"
               value={photoUrl}
-              onChange={(e) => { setPhotoUrl(e.target.value); setPhotoFile(null); setPhotoPreview('') }}
+              onChange={(e) => { setPhotoUrl(e.target.value); setPhotoFile(null); setPhotoPreview(e.target.value) }}
               placeholder="https://example.com/your-photo.jpg"
               className="w-full bg-zinc-800 text-white px-4 py-2 rounded-lg outline-none placeholder:text-zinc-500 text-sm"
             />
@@ -215,10 +284,13 @@ export default function SetupPage() {
             />
             <button
               onClick={recording ? stopRecording : startRecording}
+              disabled={showVoicePicker}
               className={`w-full py-3 rounded-xl font-medium transition-colors ${
                 recording
                   ? 'bg-red-600 text-white animate-pulse'
-                  : 'bg-zinc-700 text-white hover:bg-zinc-600'
+                  : showVoicePicker
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    : 'bg-zinc-700 text-white hover:bg-zinc-600'
               }`}
             >
               {recording ? `⏹ Stop Recording (${recordingSeconds}s)` : '⏺ Start Recording'}
@@ -226,12 +298,59 @@ export default function SetupPage() {
             {audioBlob && !recording && (
               <p className="text-zinc-400 text-sm text-center">Recording captured ({recordingSeconds}s) ✓</p>
             )}
+            {!showVoicePicker && (
+              <button
+                type="button"
+                onClick={handleSkipToVoicePicker}
+                className="mx-auto block text-xs text-zinc-500 underline underline-offset-4 hover:text-zinc-300 transition-colors"
+              >
+                Skip this and choose an ElevenLabs voice instead
+              </button>
+            )}
+            {showVoicePicker && (
+              <div className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-white">Choose an ElevenLabs voice</h3>
+                    <p className="text-xs text-zinc-400">Use any available voice without recording your own.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowVoicePicker(false)
+                      setPickedVoiceId('')
+                    }}
+                    className="text-xs text-zinc-500 underline underline-offset-4 hover:text-zinc-300 transition-colors"
+                  >
+                    Back to recording
+                  </button>
+                </div>
+                {voicesLoading ? (
+                  <p className="text-sm text-zinc-400">Loading voices…</p>
+                ) : voices.length > 0 ? (
+                  <select
+                    value={pickedVoiceId}
+                    onChange={(e) => setPickedVoiceId(e.target.value)}
+                    className="w-full rounded-lg bg-zinc-800 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="">Select a voice</option>
+                    {voices.map((voice) => (
+                      <option key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name} {voice.category ? `(${voice.category})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm text-zinc-400">No ElevenLabs voices are available for this account yet.</p>
+                )}
+              </div>
+            )}
             <button
               onClick={handleVoiceNext}
-              disabled={!audioBlob || loading}
+              disabled={(showVoicePicker ? !pickedVoiceId : !audioBlob) || loading || voicesLoading}
               className="w-full bg-white text-black py-3 rounded-xl font-medium disabled:opacity-40 transition-opacity"
             >
-              {loading ? 'Cloning voice…' : 'Next →'}
+              {loading ? 'Cloning voice…' : showVoicePicker ? 'Use this voice →' : 'Next →'}
             </button>
           </div>
         )}

@@ -13,6 +13,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ voice_id })
   } catch (err) {
     console.error('voice/clone error:', err)
-    return NextResponse.json({ error: 'Voice clone failed' }, { status: 500 })
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

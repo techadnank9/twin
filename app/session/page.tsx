@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { AvatarStream } from '@/components/AvatarStream'
 import { ConversationEngine } from '@/components/ConversationEngine'
@@ -8,11 +8,11 @@ import { useStore } from '@/lib/store'
 export default function SessionPage() {
   const router = useRouter()
   const { config, clearHistory } = useStore()
-  const speakRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const [speakFn, setSpeakFn] = useState<((text: string) => Promise<void>) | null>(null)
   const [transcript, setTranscript] = useState<{ role: string; text: string }[]>([])
 
   const handleReady = useCallback((speak: (text: string) => Promise<void>) => {
-    speakRef.current = speak
+    setSpeakFn(() => speak)
   }, [])
 
   const handleTranscript = useCallback((text: string, role: 'user' | 'assistant') => {
@@ -46,6 +46,7 @@ export default function SessionPage() {
       <div className="flex-1 relative">
         <AvatarStream
           sourceUrl={config.sourceUrl}
+          previewUrl={config.previewUrl || config.sourceUrl}
           voiceId={config.voiceId}
           name={config.name}
           onReady={handleReady}
@@ -73,7 +74,7 @@ export default function SessionPage() {
       {/* Control bar */}
       <div className="bg-zinc-950 border-t border-zinc-800 px-6 py-3 flex items-center gap-4">
         <ConversationEngine
-          speak={speakRef.current}
+          speak={speakFn}
           onTranscript={handleTranscript}
         />
         <button

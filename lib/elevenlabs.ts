@@ -16,7 +16,7 @@ export async function cloneVoice(audioBlob: Blob, name: string): Promise<string>
     headers: authHeaders(),
     body: form,
   })
-  if (!res.ok) throw new Error(`ElevenLabs cloneVoice failed: ${res.status}`)
+  if (!res.ok) throw new Error(`ElevenLabs cloneVoice failed: ${res.status} ${await res.text()}`)
   const data = await res.json()
   return data.voice_id
 }

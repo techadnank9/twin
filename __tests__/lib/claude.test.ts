@@ -1,9 +1,9 @@
-import { buildMessages, SYSTEM_PROMPT } from '@/lib/claude'
+import { buildMessages, resolveAnthropicApiKey, SYSTEM_PROMPT } from '@/lib/claude'
 
 describe('buildMessages', () => {
   it('returns messages unchanged when under 20', () => {
     const history = [{ role: 'user' as const, content: 'Hi' }]
-    expect(buildMessages(history, 'my persona')).toHaveLength(1)
+    expect(buildMessages(history)).toHaveLength(1)
   })
 
   it('trims history to last 20 messages', () => {
@@ -11,9 +11,15 @@ describe('buildMessages', () => {
       role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
       content: `msg ${i}`,
     }))
-    const msgs = buildMessages(history, 'my persona')
+    const msgs = buildMessages(history)
     expect(msgs).toHaveLength(20)
     expect(msgs[0].content).toBe('msg 5')
+  })
+})
+
+describe('resolveAnthropicApiKey', () => {
+  it('prefers the request api key when provided', () => {
+    expect(resolveAnthropicApiKey('sk-ant-test')).toBe('sk-ant-test')
   })
 })
 
