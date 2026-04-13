@@ -16,18 +16,19 @@ export function useStream(sourceUrl: string, voiceId: string) {
   const [playbackBlocked, setPlaybackBlocked] = useState(false)
 
   const playRemoteMedia = useCallback(async () => {
-    if (!videoRef.current) return
-    videoRef.current.autoplay = true
-    videoRef.current.playsInline = true
-    // Start muted so browser allows autoplay, then unmute
-    videoRef.current.muted = true
-    videoRef.current.volume = 1
+    const video = videoRef.current
+    if (!video || !video.srcObject) return  // guard against cleared srcObject
+    video.autoplay = true
+    video.playsInline = true
+    video.muted = true
+    video.volume = 1
     try {
-      await videoRef.current.play()
-      // Unmute after play() succeeds
-      videoRef.current.muted = false
+      await video.play()
+      video.muted = false
       setPlaybackBlocked(false)
-    } catch (error) {
+    } catch (error: unknown) {
+      // AbortError = interrupted by another play() call or element removed — not a real block
+      if (error instanceof Error && error.name === 'AbortError') return
       console.warn('Remote media playback was blocked', error)
       setPlaybackBlocked(true)
     }
@@ -54,8 +55,11 @@ export function useStream(sourceUrl: string, voiceId: string) {
       }
       const { id: streamId, session_id: sessionId, offer, ice_servers } = await createRes.json()
 
-      // 2. Set up WebRTC peer connection
-      const pc = new RTCPeerConnection({ iceServers: ice_servers })
+      // 2. Set up WebRTC peer connection — force TURN relay to bypass NAT
+      const pc = new RTCPeerConnection({
+        iceServers: ice_servers,
+        iceTransportPolicy: 'relay',
+      })
       const remoteStream = new MediaStream()
       remoteStreamRef.current = remoteStream
 
@@ -119,14 +123,14 @@ export function useStream(sourceUrl: string, voiceId: string) {
       })
 
       stateRef.current = { streamId, sessionId, pc }
-      // connected is set via onconnectionstatechange, with a 15s fallback
+      // connected is set via onconnectionstatechange, with an 8s fallback
       setTimeout(() => {
         if (!stateRef.current) return
         setConnected((prev) => {
           if (!prev) console.warn('WebRTC did not reach connected state — forcing ready')
           return true
         })
-      }, 15000)
+      }, 8000)
     } catch (err) {
       console.warn('Avatar connection warning', err)
       setError(err instanceof Error ? err.message : 'Connection failed')
